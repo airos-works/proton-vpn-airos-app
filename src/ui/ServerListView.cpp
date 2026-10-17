@@ -314,7 +314,7 @@ void ServerListView::Rebuild(const ServerList& servers, int userTier, bool resco
         row->maintenance = country.summary.underMaintenance;
         row->smartRouting = country.summary.smartRouting;
         row->upgrade = upgradeFor(kRowCountry, row->free);
-        AddItem(row);
+        AddItem(row, FullListCountItems());
         if (expanded.count(row->ExpansionKey()))
             toExpand.push_back(row);
         if (row->ExpansionKey() == selectedKey)
@@ -332,7 +332,9 @@ void ServerListView::Rebuild(const ServerList& servers, int userTier, bool resco
             item->smartRouting = server->SmartRouting();
             item->load = server->load;
             item->upgrade = upgradeFor(kRowServer, item->free);
-            AddUnder(item, parent);
+            // In display order: the item's outline level makes it a child of
+            // the row before it (AddUnder would put it first).
+            AddItem(item, FullListCountItems());
             if ("V:" + server->id == selectedKey)
                 reselect = item;
         };
@@ -345,7 +347,7 @@ void ServerListView::Rebuild(const ServerList& servers, int userTier, bool resco
             locationRow->maintenance = location.summary.underMaintenance;
             locationRow->smartRouting = location.summary.smartRouting;
             locationRow->upgrade = upgradeFor(kRowLocation, locationRow->free);
-            AddUnder(locationRow, row);
+            AddItem(locationRow, FullListCountItems());
             if (expanded.count(locationRow->ExpansionKey()))
                 toExpand.push_back(locationRow);
             if (locationRow->ExpansionKey() == selectedKey)
@@ -361,7 +363,7 @@ void ServerListView::Rebuild(const ServerList& servers, int userTier, bool resco
             group->free = country.secureCoreSummary.free;
             group->maintenance = country.secureCoreSummary.underMaintenance;
             group->upgrade = upgradeFor(kRowSecureCoreGroup, group->free);
-            AddUnder(group, row);
+            AddItem(group, FullListCountItems());
             if (expanded.count(group->ExpansionKey()))
                 toExpand.push_back(group);
             for (const LogicalServer* server : country.secureCore)

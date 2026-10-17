@@ -228,10 +228,7 @@ void VpnView::UpdateButtons()
     }
     bool showChange = fRescope && fTier == kTierFree
         && (fStatus.state == VpnState::Connected || fStatus.state == VpnState::Connecting);
-    if (showChange && fChangeServer->IsHidden())
-        fChangeServer->Show();
-    else if (!showChange && !fChangeServer->IsHidden())
-        fChangeServer->Hide();
+    SetVisible(fChangeServer, showChange);
     double remaining = fCooldownUntil - MonotonicNow();
     bool cooling = showChange && remaining > 0;
     if (cooling) {
@@ -247,10 +244,7 @@ void VpnView::UpdateButtons()
         fChangeServer->SetLabel("Change server");
     }
     fChangeServer->SetEnabled(ChangeServerAvailable());
-    if (cooling && fCooldownNote->IsHidden())
-        fCooldownNote->Show();
-    else if (!cooling && !fCooldownNote->IsHidden())
-        fCooldownNote->Hide();
+    SetVisible(fCooldownNote, cooling);
 }
 
 

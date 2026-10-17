@@ -41,11 +41,16 @@ bool KeyStoreSecrets::Save(const std::string& data)
 {
     BKeyStore store;
     if (EnsureKeyring(store)) {
-        BPasswordKey old;
-        if (store.GetKey(kKeyring, B_KEY_TYPE_PASSWORD, kIdentifier, kSecondary, false, old) == B_OK)
-            store.RemoveKey(kKeyring, old);
         BPasswordKey key(data.c_str(), B_KEY_PURPOSE_GENERIC, kIdentifier, kSecondary);
-        if (store.AddKey(kKeyring, key) == B_OK) {
+        status_t status = store.AddKey(kKeyring, key);
+        if (status == B_NAME_IN_USE) {
+            // Replace the stored session.
+            BPasswordKey old;
+            if (store.GetKey(kKeyring, B_KEY_TYPE_PASSWORD, kIdentifier, kSecondary, false, old) == B_OK)
+                store.RemoveKey(kKeyring, old);
+            status = store.AddKey(kKeyring, key);
+        }
+        if (status == B_OK) {
             fFallback.Remove();
             return true;
         }

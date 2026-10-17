@@ -146,10 +146,7 @@ void LoginView::SetBusy(bool busy)
 
 void LoginView::SetKillSwitchBlocking(bool blocking)
 {
-    if (blocking && fBanner->IsHidden())
-        fBanner->Show();
-    else if (!blocking && !fBanner->IsHidden())
-        fBanner->Hide();
+    SetVisible(fBanner, blocking);
     fUsername->SetEnabled(!blocking && !fBusy);
     fPassword->SetEnabled(!blocking && !fBusy);
     fShowPassword->SetEnabled(!blocking);

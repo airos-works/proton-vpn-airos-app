@@ -10,6 +10,10 @@
 class BBitmap;
 class BMessageRunner;
 
+// Shows or hides a view. BView::IsHidden() also says "hidden" while the
+// window is not shown yet, so this looks at the view's own show level.
+void SetVisible(BView* view, bool visible);
+
 // Opens a URL with the preferred application (WebPositive or Summit).
 void OpenUrl(const char* url);
 

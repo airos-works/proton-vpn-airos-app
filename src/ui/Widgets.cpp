@@ -22,6 +22,16 @@ bool DarkPanel()
 }  // namespace
 
 
+void SetVisible(BView* view, bool visible)
+{
+    bool hidden = view->IsHidden(view);
+    if (visible && hidden)
+        view->Show();
+    else if (!visible && !hidden)
+        view->Hide();
+}
+
+
 void OpenUrl(const char* url)
 {
     BUrl target(url, true);
@@ -196,8 +206,7 @@ void NotificationBar::Show(const char* text, NotificationKind kind, bigtime_t du
     delete fTimer;
     BMessage dismiss(kMsgDismiss);
     fTimer = new BMessageRunner(BMessenger(this), &dismiss, duration, 1);
-    if (IsHidden())
-        BView::Show();
+    SetVisible(this, true);
     Invalidate();
     fText->Invalidate();
 }
@@ -207,14 +216,13 @@ void NotificationBar::Dismiss()
 {
     delete fTimer;
     fTimer = nullptr;
-    if (!IsHidden())
-        Hide();
+    SetVisible(this, false);
 }
 
 
 const char* NotificationBar::Text() const
 {
-    return IsHidden() ? "" : fText->Text();
+    return IsHidden(this) ? "" : fText->Text();
 }
 
 

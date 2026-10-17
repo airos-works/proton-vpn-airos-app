@@ -334,15 +334,9 @@ void SettingsWindow::UpdateState()
     fKillAdvanced->SetEnabled(disconnected);
     fProtocol->SetEnabled(disconnected);
     bool showModes = fKillSwitch->Value() == B_CONTROL_ON;
-    if (showModes && fKillModes->IsHidden())
-        fKillModes->Show();
-    else if (!showModes && !fKillModes->IsHidden())
-        fKillModes->Hide();
+    SetVisible(fKillModes, showModes);
     bool showDns = fCustomDns->Value() == B_CONTROL_ON && !fFree;
-    if (showDns && fDnsPanel->IsHidden())
-        fDnsPanel->Show();
-    else if (!showDns && !fDnsPanel->IsHidden())
-        fDnsPanel->Hide();
+    SetVisible(fDnsPanel, showDns);
 }
 
 

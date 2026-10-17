@@ -157,7 +157,11 @@ void ProtonApp::ReadyToRun()
             frame.Set(left, top, right, bottom);
     } else {
         BRect screen = BScreen().Frame();
-        frame.OffsetTo((screen.Width() - frame.Width()) / 2, (screen.Height() - frame.Height()) / 3);
+        // Leave room for the title tab and the Deskbar on small screens.
+        if (frame.Height() > screen.Height() - 80 * scale)
+            frame.bottom = frame.top + screen.Height() - 80 * scale;
+        frame.OffsetTo((screen.Width() - frame.Width()) / 2,
+            std::max(30 * scale, (screen.Height() - frame.Height()) / 3));
     }
     if (!BScreen().Frame().Intersects(frame))
         frame.OffsetTo(80, 80);

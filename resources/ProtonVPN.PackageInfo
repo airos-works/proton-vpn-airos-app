@@ -1,0 +1,20 @@
+name proton_vpn
+version 0.1.0~alpha-1
+architecture x86_64
+summary "Proton VPN for air/OS"
+description "A native port of the Proton VPN Linux app to air/OS and Haiku: sign in to your Proton account (with two-factor codes), browse countries, cities and Secure Core servers, and connect over WireGuard (built in, userspace) or OpenVPN (UDP or TCP). Supports NetShield, VPN Accelerator, moderate NAT, port forwarding, the kill switch, custom DNS and IPv6, with a Deskbar tray icon. Ships its own OpenVPN 2.6.13 build (proton-openvpn) with Haiku tunnel and routing fixes."
+packager "Proton VPN for air/OS contributors"
+vendor "Proton VPN for air/OS"
+copyrights { "2026 Proton AG" "2026 Proton VPN for air/OS contributors" "2002-2024 OpenVPN Inc" }
+licenses { "GNU GPL v3" "GNU GPL v2" }
+provides {
+    proton_vpn = 0.1.0~alpha
+    app:Proton_VPN = 0.1.0~alpha
+    cmd:proton_vpn_cli = 0.1.0~alpha
+}
+requires {
+    haiku >= r1~beta6
+    lib:libcrypto >= 3
+    lib:libssl >= 3
+    lib:libcurl >= 4
+}
