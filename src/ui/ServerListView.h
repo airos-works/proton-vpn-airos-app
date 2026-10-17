@@ -61,6 +61,7 @@ public:
     void MouseDown(BPoint where) override;
     void MouseMoved(BPoint where, uint32 transit, const BMessage* message) override;
     void KeyDown(const char* bytes, int32 count) override;
+    void FrameResized(float width, float height) override;
     bool InitiateDrag(BPoint point, int32 index, bool wasSelected) override { return false; }
 
 private:

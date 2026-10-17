@@ -41,3 +41,25 @@ python3 tools/vm.py screenshot       # .vm/screen.png
 ```
 
 The guest reaches the host as `10.0.2.2` (QEMU user networking).
+
+## Testing against the stand-in Proton servers
+
+```sh
+bash tools/fake-proton.sh start          # API on 18080/18443, VPN server in Docker
+bash tools/haiku.sh '. /Data/fakeenv.sh; $CLI login demo'   # see below
+```
+
+`/Data/fakeenv.sh` in the guest downloads the fake CAs and sets `PROTON_VPN_API_URL`,
+`PROTON_VPN_API_PINS=none`, `PROTON_VPN_OPENVPN_CA_FILE`, `PROTON_VPN_AGENT_CA_FILE` and
+`CLI` (proton-vpn-cli with its own state directory). Start the app with the same
+environment to test the UI against the fake servers:
+
+```sh
+bash tools/haiku.sh '. /Data/fakeenv.sh; cd /Data/proton-vpn; nohup build-haiku/ProtonVPN >/Data/app.out 2>&1 &'
+```
+
+The app logs to `~/config/settings/Proton VPN/proton-vpn.log`. `hey application/x-vnd.ProtonVPN qcon`
+quick-connects, `dcon` disconnects, `rfsv` refreshes the server list.
+
+The package needed `patch` for the OpenVPN build; on the first activation the package
+daemon also updated xz_utils, sqlite and expat (a dialog on the guest's screen).
