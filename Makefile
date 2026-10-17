@@ -56,3 +56,5 @@ package: all
 clean:
 	rm -rf $(BUILD)
 -include $(CORE_OBJ:.o=.d) $(UI_OBJ:.o=.d) $(WG_OBJ:.o=.d) $(BUILD)/tests/CoreTests.d
+$(BUILD)/wg_interop: $(CORE_OBJ) $(BUILD)/tests/WgInterop.o
+	$(CXX) -o $@ $^ $(CORE_LIBS)

@@ -5,6 +5,11 @@
 #include "core/Modulus.h"
 #include "core/Srp.h"
 #include "core/Util.h"
+#include "core/WireGuard.h"
+#include "core/ServerList.h"
+#include "core/Settings.h"
+#include "core/ResolvConf.h"
+#include <cstring>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -104,6 +109,105 @@ static void TestSrp()
 }
 
 
+static std::vector<uint8_t> FakeIpPacket(size_t payload, uint8_t fill)
+{
+    std::vector<uint8_t> packet(20 + payload, fill);
+    packet[0] = 0x45;
+    packet[1] = 0;
+    packet[2] = (packet.size() >> 8) & 0xff;
+    packet[3] = packet.size() & 0xff;
+    return packet;
+}
+
+
+static void TestWireGuard()
+{
+    using namespace pvpn::wg;
+    Key a = GeneratePrivateKey(), b = GeneratePrivateKey();
+    Key aPublic, bPublic;
+    CHECK(PublicKeyFromPrivate(a, aPublic));
+    CHECK(PublicKeyFromPrivate(b, bPublic));
+    Key parsed;
+    CHECK(ParseKey(KeyToBase64(aPublic), parsed));
+    CHECK(parsed == aPublic);
+
+    Peer client(a, bPublic, 0);
+    Peer server(b, aPublic, 0);
+    double now = 1000;
+    Output clientOut, serverOut;
+    std::vector<uint8_t> first = FakeIpPacket(100, 0x11);
+    client.SendPacket(first.data(), first.size(), now, clientOut);
+    CHECK_EQ(clientOut.toNetwork.size(), (size_t)1);       // the initiation
+    CHECK_EQ(clientOut.toNetwork[0].size(), (size_t)148);
+    server.ReceiveDatagram(clientOut.toNetwork[0].data(), clientOut.toNetwork[0].size(), now, serverOut);
+    CHECK_EQ(serverOut.toNetwork.size(), (size_t)1);       // the response
+    CHECK_EQ(serverOut.toNetwork[0].size(), (size_t)92);
+    Output clientOut2;
+    client.ReceiveDatagram(serverOut.toNetwork[0].data(), serverOut.toNetwork[0].size(), now, clientOut2);
+    CHECK(client.HasSession(now));
+    CHECK_EQ(client.GetStats().handshakes, (uint32_t)1);
+    // The queued packet goes out after the handshake.
+    CHECK_EQ(clientOut2.toNetwork.size(), (size_t)1);
+    Output serverOut2;
+    for (auto& datagram : clientOut2.toNetwork)
+        server.ReceiveDatagram(datagram.data(), datagram.size(), now, serverOut2);
+    CHECK_EQ(serverOut2.toTunnel.size(), (size_t)1);
+    CHECK(serverOut2.toTunnel.size() == 1 && serverOut2.toTunnel[0] == first);
+    // A replayed datagram is dropped.
+    Output replay;
+    server.ReceiveDatagram(clientOut2.toNetwork[0].data(), clientOut2.toNetwork[0].size(), now, replay);
+    CHECK(replay.toTunnel.empty());
+    // The server answers with its now confirmed keys.
+    std::vector<uint8_t> answer = FakeIpPacket(1300, 0x22);
+    Output serverOut3, clientOut3;
+    server.SendPacket(answer.data(), answer.size(), now + 1, serverOut3);
+    CHECK_EQ(serverOut3.toNetwork.size(), (size_t)1);
+    for (auto& datagram : serverOut3.toNetwork)
+        client.ReceiveDatagram(datagram.data(), datagram.size(), now + 1, clientOut3);
+    CHECK(clientOut3.toTunnel.size() == 1 && clientOut3.toTunnel[0] == answer);
+    // A tampered datagram does not decrypt.
+    Output tampered;
+    std::vector<uint8_t> broken = serverOut3.toNetwork[0];
+    broken[40] ^= 1;
+    client.ReceiveDatagram(broken.data(), broken.size(), now + 1, tampered);
+    CHECK(tampered.toTunnel.empty());
+
+    // After REKEY_AFTER_TIME the initiator starts a new handshake while
+    // still sending with the old keys.
+    Output rekey;
+    double later = now + kRekeyAfterTime + 1;
+    client.SendPacket(first.data(), first.size(), later, rekey);
+    CHECK_EQ(rekey.toNetwork.size(), (size_t)2);   // data + initiation
+    Output serverRekey;
+    for (auto& datagram : rekey.toNetwork)
+        server.ReceiveDatagram(datagram.data(), datagram.size(), later, serverRekey);
+    CHECK_EQ(serverRekey.toTunnel.size(), (size_t)1);
+    CHECK_EQ(serverRekey.toNetwork.size(), (size_t)1);
+    Output clientRekey;
+    client.ReceiveDatagram(serverRekey.toNetwork[0].data(), serverRekey.toNetwork[0].size(), later, clientRekey);
+    CHECK_EQ(client.GetStats().handshakes, (uint32_t)2);
+    // The keepalive that confirms the new session reaches the server.
+    Output serverConfirm;
+    for (auto& datagram : clientRekey.toNetwork)
+        server.ReceiveDatagram(datagram.data(), datagram.size(), later, serverConfirm);
+    Output serverNew, clientNew;
+    server.SendPacket(answer.data(), answer.size(), later, serverNew);
+    for (auto& datagram : serverNew.toNetwork)
+        client.ReceiveDatagram(datagram.data(), datagram.size(), later, clientNew);
+    CHECK_EQ(clientNew.toTunnel.size(), (size_t)1);
+
+    // A handshake nobody answers is retried and then given up.
+    Peer lonely(a, bPublic, 0);
+    Output lonelyOut;
+    lonely.Initiate(0, lonelyOut);
+    size_t initiations = lonelyOut.toNetwork.size();
+    for (double t = 0; t < kRekeyAttemptTime + 10; t += 0.5)
+        lonely.Tick(t, lonelyOut);
+    CHECK(lonelyOut.toNetwork.size() - initiations >= 10);
+    CHECK(lonely.HandshakeTimedOut());
+}
+
+
 int main(int argc, char** argv)
 {
     signal(SIGPIPE, SIG_IGN);
@@ -113,6 +217,7 @@ int main(int argc, char** argv)
     TestKeys();
     TestModulus();
     TestSrp();
+    TestWireGuard();
     printf("%d checks, %d failures\n", sChecks, sFailures);
     return sFailures == 0 ? 0 : 1;
 }
