@@ -577,7 +577,9 @@ void Connector::Process(Event& event)
                     error = VpnEvent::TwoFactorRequired;
                 else if (agent.MaxSessions())
                     error = VpnEvent::MaximumSessionsReached;
-                if (state != VpnState::Disconnecting && state != VpnState::Disconnected) {
+                bool repeated = state == VpnState::Error && Status().event == error;
+                if (state != VpnState::Disconnecting && state != VpnState::Disconnected
+                    && !repeated) {
                     Transition(VpnState::Error, error, agent.reasonDescription);
                     EnterError();
                 }

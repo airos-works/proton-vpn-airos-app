@@ -52,5 +52,6 @@ private:
     BMenuItem* fConnectItem;
     BMenuItem* fDisconnectItem;
     BMenuItem* fFindItem;
+    BMenuItem* fRefreshItem;
     pvpn::VpnStatus fStatus;
 };

@@ -70,4 +70,5 @@ private:
     FILE* fLog = nullptr;
     std::mutex fLogLock;
     std::string fSettingsDirectory;
+    std::string fPendingConnect;    // --connect before the session was ready
 };

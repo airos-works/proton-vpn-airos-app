@@ -349,6 +349,18 @@ ApiResult Client::RefreshAccountInfo()
 }
 
 
+ApiResult Client::RefreshServerList()
+{
+    FetchClientConfig();
+    ApiResult result = FetchServerList(true);
+    if (result.Ok())
+        fListener->ServerListChanged();
+    else
+        HandleApiError(result);
+    return result;
+}
+
+
 ApiResult Client::SubmitBugReport(const std::string& username, const std::string& email,
     const std::string& description, const std::vector<std::string>& attachments,
     const std::string& clientVersion)

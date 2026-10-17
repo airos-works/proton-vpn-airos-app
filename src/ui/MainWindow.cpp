@@ -50,10 +50,13 @@ MainWindow::MainWindow(BRect frame)
     fConnectItem = new BMenuItem("Quick connect", new BMessage(kMsgQuickConnect), 'K');
     fDisconnectItem = new BMenuItem("Disconnect", new BMessage(kMsgDisconnect), 'D');
     fFindItem = new BMenuItem("Find" B_UTF8_ELLIPSIS, new BMessage(kMsgFocusSearch), 'F');
+    fRefreshItem = new BMenuItem("Refresh server list", new BMessage(kMsgRefreshServers), 'R');
+    fRefreshItem->SetTarget(be_app);
     connection->AddItem(fConnectItem);
     connection->AddItem(fDisconnectItem);
     connection->AddSeparatorItem();
     connection->AddItem(fFindItem);
+    connection->AddItem(fRefreshItem);
     menuBar->AddItem(connection);
 
     fNotification = new NotificationBar();
@@ -103,6 +106,7 @@ void MainWindow::MenusBeginning()
     fConnectItem->SetEnabled(vpn && fStatus.state == pvpn::VpnState::Disconnected);
     fDisconnectItem->SetEnabled(vpn && fStatus.state != pvpn::VpnState::Disconnected);
     fFindItem->SetEnabled(vpn);
+    fRefreshItem->SetEnabled(vpn);
 }
 
 

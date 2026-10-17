@@ -1,6 +1,7 @@
 #include "Widgets.h"
 #include "Icons.h"
 #include "Messages.h"
+#include "core/Util.h"
 #include <Bitmap.h>
 #include <Button.h>
 #include <ControlLook.h>
@@ -179,36 +180,92 @@ BSize DescriptionView::MinSize()
 
 NotificationBar::NotificationBar()
     :
-    BView("notification bar", B_WILL_DRAW)
+    BView("notification bar", B_WILL_DRAW | B_FULL_UPDATE_ON_RESIZE | B_FRAME_EVENTS)
 {
-    fText = new DescriptionView("text", "", false);
-    BGroupLayout* layout = new BGroupLayout(B_VERTICAL);
-    SetLayout(layout);
-    float inset = be_control_look->DefaultItemSpacing();
-    layout->SetInsets(inset, inset / 2, inset, inset / 2);
-    AddChild(fText);
+}
+
+
+NotificationBar::~NotificationBar()
+{
+    delete fTimer;
+}
+
+
+float NotificationBar::Padding() const
+{
+    return be_control_look->DefaultItemSpacing();
+}
+
+
+std::vector<std::string> NotificationBar::Lines(float width) const
+{
+    // Word wrap within the width, keeping explicit line breaks.
+    std::vector<std::string> lines;
+    float available = std::max(50.0f, width - 2 * Padding() - 4);
+    for (const std::string& paragraph : pvpn::Split(fText, '\n')) {
+        std::string line;
+        for (const std::string& word : pvpn::Split(paragraph, ' ')) {
+            std::string candidate = line.empty() ? word : line + " " + word;
+            if (!line.empty() && be_plain_font->StringWidth(candidate.c_str()) > available) {
+                lines.push_back(line);
+                line = word;
+            } else {
+                line = candidate;
+            }
+        }
+        lines.push_back(line);
+    }
+    return lines;
+}
+
+
+void NotificationBar::GetHeightForWidth(float width, float* min, float* max, float* preferred)
+{
+    font_height height;
+    be_plain_font->GetHeight(&height);
+    float line = ceilf(height.ascent + height.descent + height.leading);
+    float total = Lines(width).size() * line + Padding() * 1.5f;
+    if (min != nullptr)
+        *min = total;
+    if (max != nullptr)
+        *max = total;
+    if (preferred != nullptr)
+        *preferred = total;
+}
+
+
+BSize NotificationBar::MinSize()
+{
+    float height;
+    GetHeightForWidth(Bounds().Width() > 10 ? Bounds().Width() : 300, &height, nullptr, nullptr);
+    return BSize(50, height);
+}
+
+
+BSize NotificationBar::MaxSize()
+{
+    return BSize(B_SIZE_UNLIMITED, MinSize().height);
+}
+
+
+void NotificationBar::FrameResized(float width, float height)
+{
+    BView::FrameResized(width, height);
+    InvalidateLayout();
+    Invalidate();
 }
 
 
 void NotificationBar::Show(const char* text, NotificationKind kind, bigtime_t duration)
 {
     fKind = kind;
-    rgb_color base = kind == kNotificationError ? DangerColor()
-        : kind == kNotificationSuccess ? SuccessColor() : AccentColor();
-    rgb_color background = Icons::Mix(ui_color(B_PANEL_BACKGROUND_COLOR), base, 0.25f);
-    SetViewColor(background);
-    fText->SetViewColor(background);
-    fText->SetLowColor(background);
-    fText->SetText(text);
-    rgb_color color = ui_color(B_PANEL_TEXT_COLOR);
-    fText->SetFontAndColor(be_plain_font, B_FONT_ALL, &color);
-    fText->SetAlignment(B_ALIGN_CENTER);
+    fText = text != nullptr ? text : "";
     delete fTimer;
     BMessage dismiss(kMsgDismiss);
     fTimer = new BMessageRunner(BMessenger(this), &dismiss, duration, 1);
     SetVisible(this, true);
+    InvalidateLayout();
     Invalidate();
-    fText->Invalidate();
 }
 
 
@@ -222,7 +279,7 @@ void NotificationBar::Dismiss()
 
 const char* NotificationBar::Text() const
 {
-    return IsHidden(this) ? "" : fText->Text();
+    return IsHidden(const_cast<NotificationBar*>(this)) ? "" : fText.c_str();
 }
 
 
@@ -240,9 +297,25 @@ void NotificationBar::Draw(BRect updateRect)
 {
     rgb_color base = fKind == kNotificationError ? DangerColor()
         : fKind == kNotificationSuccess ? SuccessColor() : AccentColor();
-    SetHighColor(base);
+    rgb_color background = Icons::Mix(ui_color(B_PANEL_BACKGROUND_COLOR), base, 0.25f);
     BRect bounds = Bounds();
+    SetHighColor(background);
+    FillRect(bounds);
+    SetHighColor(base);
     FillRect(BRect(bounds.left, bounds.top, bounds.left + 3, bounds.bottom));
+    SetHighColor(ui_color(B_PANEL_TEXT_COLOR));
+    SetLowColor(background);
+    SetFont(be_plain_font);
+    font_height height;
+    be_plain_font->GetHeight(&height);
+    float line = ceilf(height.ascent + height.descent + height.leading);
+    std::vector<std::string> lines = Lines(bounds.Width());
+    float y = floorf((bounds.Height() - lines.size() * line) / 2) + height.ascent;
+    for (const std::string& text : lines) {
+        float width = StringWidth(text.c_str());
+        DrawString(text.c_str(), BPoint(floorf((bounds.Width() - width) / 2), y));
+        y += line;
+    }
 }
 
 

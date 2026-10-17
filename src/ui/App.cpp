@@ -206,20 +206,19 @@ std::string ProtonApp::ErrorText(const ApiResult& result) const
 
 void ProtonApp::Startup()
 {
-    if (!fClient->RestoreSession()) {
-        ShowLoginScreen();
-        return;
-    }
-    if (fClient->SessionDataLoaded()) {
-        SessionReady();
-        return;
-    }
     if (fWindow->LockLooper()) {
         fWindow->ShowLoading("Loading app...");
         fWindow->UnlockLooper();
     }
+    // Reading the key store may wait for the user to allow it.
     RunAsync(kMsgSessionLoaded, [this](BMessage& reply) {
-        ApiResult result = fClient->LoadSessionData();
+        bool restored = fClient->LoggedIn() || fClient->RestoreSession();
+        reply.AddBool("restored", restored);
+        if (!restored)
+            return;
+        ApiResult result;
+        if (!fClient->SessionDataLoaded())
+            result = fClient->LoadSessionData();
         reply.AddBool("ok", result.Ok());
         reply.AddInt32("error", (int32)result.error);
         reply.AddString("text", ErrorText(result).c_str());
@@ -251,7 +250,14 @@ void ProtonApp::SessionReady()
         fWindow->UnlockLooper();
     }
     RefreshServers();
-    AutoConnect();
+    if (!fPendingConnect.empty()) {
+        BMessage connect(kMsgConnectCode);
+        connect.AddString("code", fPendingConnect.c_str());
+        fPendingConnect.clear();
+        HandleConnect(&connect);
+    } else {
+        AutoConnect();
+    }
 }
 
 
@@ -669,7 +675,9 @@ void ProtonApp::MessageReceived(BMessage* message)
             });
             break;
         case kMsgSessionLoaded:
-            if (message->GetBool("ok", false)) {
+            if (!message->GetBool("restored", true)) {
+                ShowLoginScreen();
+            } else if (message->GetBool("ok", false)) {
                 SessionReady();
             } else if ((ApiError)message->GetInt32("error", 0) == ApiError::AuthenticationNeeded) {
                 ShowLoginScreen();
@@ -705,6 +713,8 @@ void ProtonApp::MessageReceived(BMessage* message)
         case kMsgChangeServer:
             if (fSessionReady)
                 HandleConnect(message);
+            else if (message->what == kMsgConnectCode)
+                fPendingConnect = message->GetString("code", "");
             break;
         case kMsgDisconnect:
             if (fClient)
@@ -799,6 +809,24 @@ void ProtonApp::MessageReceived(BMessage* message)
             break;
         }
 
+        case kMsgRefreshServers:
+            if (!fSessionReady)
+                break;
+            RunAsync(kMsgServersRefreshed, [this](BMessage& reply) {
+                ApiResult result = fClient->RefreshServerList();
+                reply.AddBool("ok", result.Ok());
+                reply.AddString("text", ErrorText(result).c_str());
+            });
+            break;
+        case kMsgServersRefreshed:
+            if (fWindow->LockLooper()) {
+                if (message->GetBool("ok", false))
+                    fWindow->Notify("Server list updated", kNotificationSuccess, 3000000);
+                else
+                    fWindow->Notify(message->GetString("text", ""));
+                fWindow->UnlockLooper();
+            }
+            break;
         case kMsgShowSettings:
             ShowSettings();
             break;

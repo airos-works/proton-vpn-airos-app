@@ -6,6 +6,7 @@
 #include <TextView.h>
 #include <View.h>
 #include <string>
+#include <vector>
 
 class BBitmap;
 class BMessageRunner;
@@ -64,6 +65,7 @@ enum NotificationKind {
 class NotificationBar : public BView {
 public:
     NotificationBar();
+    ~NotificationBar() override;
 
     void Show(const char* text, NotificationKind kind, bigtime_t duration = 10000000);
     void Dismiss();
@@ -71,9 +73,17 @@ public:
     void MessageReceived(BMessage* message) override;
     void Draw(BRect updateRect) override;
     void MouseDown(BPoint where) override;
+    void FrameResized(float width, float height) override;
+    bool HasHeightForWidth() override { return true; }
+    void GetHeightForWidth(float width, float* min, float* max, float* preferred) override;
+    BSize MinSize() override;
+    BSize MaxSize() override;
 
 private:
-    BTextView* fText;
+    std::vector<std::string> Lines(float width) const;
+    float Padding() const;
+
+    std::string fText;
     BMessageRunner* fTimer = nullptr;
     NotificationKind fKind = kNotificationInfo;
 };

@@ -47,6 +47,8 @@ enum {
     kMsgFocusSearch = 'fsrc',
     kMsgDisableKillSwitch = 'dkil',
     kMsgCopyPort = 'cprt',
+    kMsgRefreshServers = 'rfsv',
+    kMsgServersRefreshed = 'rfsd',
 
     // Window-internal.
     kMsgHideNotification = 'hnot',

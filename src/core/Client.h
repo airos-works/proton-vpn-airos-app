@@ -104,6 +104,8 @@ public:
     // and the server list (VPNSession.fetch_session_data).
     ApiResult LoadSessionData();
     ApiResult RefreshAccountInfo();
+    // Fetches the whole server list now (and the client configuration).
+    ApiResult RefreshServerList();
     // Submits a bug report (/core/v4/reports/bug); attachments are file paths.
     ApiResult SubmitBugReport(const std::string& username, const std::string& email,
         const std::string& description, const std::vector<std::string>& attachments,
