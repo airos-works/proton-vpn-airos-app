@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import copy
+import os
 import hashlib
 import random
 
@@ -223,6 +224,15 @@ class ServerList:
                 sc_numbers[(entry, exit_)] = sc_numbers.get((entry, exit_), 0) + 1
                 name = f"{entry}-{exit_}#{sc_numbers[(entry, exit_)]}"
                 self._add(name, entry, exit_, city, state, lat, lon, 2, SECURE_CORE | STREAMING)
+
+        # Load testing: FAKE_PROTON_BULK_SERVERS extra Plus servers, spread over
+        # the countries (the real list has some 13,000 logicals).
+        bulk = int(os.environ.get("FAKE_PROTON_BULK_SERVERS", "0") or 0)
+        codes = [code for code, _, _ in COUNTRIES]
+        for i in range(bulk):
+            code = codes[i % len(codes)]
+            city, state, lat, lon = city_of[code]
+            self._add(f"{code}#{1000 + i // len(codes)}", code, code, city, state, lat, lon, 2, P2P)
 
     # -- views ----------------------------------------------------------------
     def structure_hash(self) -> str:
