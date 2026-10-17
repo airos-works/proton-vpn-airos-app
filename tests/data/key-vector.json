@@ -1,0 +1,9 @@
+{
+ "seed": "ZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXp7fH1+f4CBgoM=",
+ "ed_public": "C7w0aldmfDgBIL2cf9flHSxf3+o3zS9b9AWyxr9vLXg=",
+ "x25519_private": "aEZ3l1XohKsXY3Q1usBpNxVf+XjLLSCBAwFHU1mJ+X0=",
+ "x25519_public": "W8zUhFJ3FPKOtrb6nkP+q65z6rGSrvHn1Z0hETQ9e3A=",
+ "fingerprint": "RvrLwnG/X9dAayhI1eLmNas/Gx7CPbTXImDCSu+PpeOno6JUmwykmCh0Clcb4fP5eP2+DeVOc/GKZGU+Pl4h5w==",
+ "public_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAC7w0aldmfDgBIL2cf9flHSxf3+o3zS9b9AWyxr9vLXg=\n-----END PUBLIC KEY-----\n",
+ "private_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIGRlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKD\n-----END PRIVATE KEY-----\n"
+}

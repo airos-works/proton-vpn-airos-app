@@ -1,0 +1,58 @@
+# Native Haiku build with the development tools bundled with Haiku; the core
+# (src/core, no Haiku API) also builds and tests on Linux:
+#   make BUILD=build-host check-host
+.DEFAULT_GOAL := all
+CXX ?= g++
+CC ?= gcc
+BUILD ?= build-haiku
+APP = ProtonVPN
+CPPFLAGS += -Isrc -Ithird_party
+CXXFLAGS ?= -O2 -g
+CXXFLAGS += -std=c++17 -Wall -Wextra -Wno-multichar -Wno-unused-parameter -Wno-sign-compare
+CFLAGS ?= -O2 -g
+CORE = $(wildcard src/core/*.cpp)
+UI = $(wildcard src/ui/*.cpp) src/main.cpp
+WG = $(wildcard src/wg/*.cpp)
+THIRD_PARTY_C = third_party/crypt_blowfish/crypt_blowfish.c
+CORE_OBJ = $(CORE:%.cpp=$(BUILD)/%.o) $(THIRD_PARTY_C:%.c=$(BUILD)/%.o)
+UI_OBJ = $(UI:%.cpp=$(BUILD)/%.o)
+WG_OBJ = $(WG:%.cpp=$(BUILD)/%.o)
+# Set TARGET_OS=Haiku when cross-compiling.
+TARGET_OS ?= $(shell uname)
+ifeq ($(TARGET_OS),Haiku)
+CORE_LIBS = -lcurl -lssl -lcrypto -lnetwork
+else
+CPPFLAGS += $(shell pkg-config --cflags libcurl openssl 2>/dev/null)
+CORE_LIBS = -lcurl -lssl -lcrypto -lpthread
+endif
+LIBS = -lbe -ltracker -ltranslation -llocalestub $(CORE_LIBS)
+.PHONY: all core objects openvpn package clean icon check check-host
+all: $(BUILD)/$(APP) $(BUILD)/proton-wireguard
+core: $(CORE_OBJ)
+objects: $(CORE_OBJ) $(UI_OBJ)
+$(BUILD)/$(APP): $(CORE_OBJ) $(UI_OBJ) resources/ProtonVPN.rdef
+	$(CXX) -o $@.new $(CORE_OBJ) $(UI_OBJ) $(LIBS) -Wl,--export-dynamic
+	rc -o $(BUILD)/$(APP).rsrc resources/ProtonVPN.rdef
+	xres -o $@.new $(BUILD)/$(APP).rsrc
+	mimeset -f $@.new
+	mv $@.new $@
+$(BUILD)/proton-wireguard: $(WG_OBJ) $(CORE_OBJ)
+	$(CXX) -o $@ $(WG_OBJ) $(CORE_OBJ) $(CORE_LIBS)
+$(BUILD)/%.o: %.cpp
+	mkdir -p $(dir $@)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+$(BUILD)/%.o: %.c
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $< -o $@
+$(BUILD)/core_tests: $(CORE_OBJ) $(BUILD)/tests/CoreTests.o
+	$(CXX) -o $@ $^ $(CORE_LIBS)
+check: $(BUILD)/core_tests
+	$(BUILD)/core_tests tests
+check-host: check
+openvpn:
+	sh openvpn/build.sh
+package: all
+	bash tools/package-haiku.sh
+clean:
+	rm -rf $(BUILD)
+-include $(CORE_OBJ:.o=.d) $(UI_OBJ:.o=.d) $(WG_OBJ:.o=.d) $(BUILD)/tests/CoreTests.d
