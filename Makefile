@@ -13,10 +13,12 @@ CFLAGS ?= -O2 -g
 CORE = $(wildcard src/core/*.cpp)
 UI = $(wildcard src/ui/*.cpp) src/main.cpp
 WG = $(wildcard src/wg/*.cpp)
+CLI = $(wildcard src/cli/*.cpp)
 THIRD_PARTY_C = third_party/crypt_blowfish/crypt_blowfish.c
 CORE_OBJ = $(CORE:%.cpp=$(BUILD)/%.o) $(THIRD_PARTY_C:%.c=$(BUILD)/%.o)
 UI_OBJ = $(UI:%.cpp=$(BUILD)/%.o)
 WG_OBJ = $(WG:%.cpp=$(BUILD)/%.o)
+CLI_OBJ = $(CLI:%.cpp=$(BUILD)/%.o)
 # Set TARGET_OS=Haiku when cross-compiling.
 TARGET_OS ?= $(shell uname)
 ifeq ($(TARGET_OS),Haiku)
@@ -26,8 +28,9 @@ CPPFLAGS += $(shell pkg-config --cflags libcurl openssl 2>/dev/null)
 CORE_LIBS = -lcurl -lssl -lcrypto -lpthread
 endif
 LIBS = -lbe -ltracker -ltranslation -llocalestub $(CORE_LIBS)
-.PHONY: all core objects openvpn package clean icon check check-host
-all: $(BUILD)/$(APP) $(BUILD)/proton-wireguard
+.PHONY: all tools core objects openvpn package clean icon check check-host
+all: $(BUILD)/$(APP) $(BUILD)/proton-wireguard $(BUILD)/proton-vpn-cli
+tools: $(BUILD)/proton-wireguard $(BUILD)/proton-vpn-cli
 core: $(CORE_OBJ)
 objects: $(CORE_OBJ) $(UI_OBJ)
 $(BUILD)/$(APP): $(CORE_OBJ) $(UI_OBJ) resources/ProtonVPN.rdef
@@ -38,6 +41,8 @@ $(BUILD)/$(APP): $(CORE_OBJ) $(UI_OBJ) resources/ProtonVPN.rdef
 	mv $@.new $@
 $(BUILD)/proton-wireguard: $(WG_OBJ) $(CORE_OBJ)
 	$(CXX) -o $@ $(WG_OBJ) $(CORE_OBJ) $(CORE_LIBS)
+$(BUILD)/proton-vpn-cli: $(CLI_OBJ) $(CORE_OBJ)
+	$(CXX) -o $@ $(CLI_OBJ) $(CORE_OBJ) $(CORE_LIBS)
 $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
@@ -55,6 +60,6 @@ package: all
 	bash tools/package-haiku.sh
 clean:
 	rm -rf $(BUILD)
--include $(CORE_OBJ:.o=.d) $(UI_OBJ:.o=.d) $(WG_OBJ:.o=.d) $(BUILD)/tests/CoreTests.d
+-include $(CORE_OBJ:.o=.d) $(UI_OBJ:.o=.d) $(WG_OBJ:.o=.d) $(CLI_OBJ:.o=.d) $(BUILD)/tests/CoreTests.d
 $(BUILD)/wg_interop: $(CORE_OBJ) $(BUILD)/tests/WgInterop.o
 	$(CXX) -o $@ $^ $(CORE_LIBS)

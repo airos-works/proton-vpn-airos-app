@@ -33,6 +33,8 @@ public:
     // Creates (Haiku: adds the first free tun/<n> interface) and opens a
     // tunnel device.
     bool Open(std::string& error);
+    // Takes over an existing tunnel interface (removed again by Close()).
+    bool OpenExisting(const std::string& name, std::string& error);
     void Close();
     int Fd() const { return fFd; }
     const std::string& Name() const { return fName; }

@@ -313,6 +313,25 @@ bool TunDevice::Open(std::string& error)
 }
 
 
+bool TunDevice::OpenExisting(const std::string& name, std::string& error)
+{
+    if (if_nametoindex(name.c_str()) == 0) {
+        error = name + " does not exist";
+        return false;
+    }
+    int fd = open(("/dev/" + name).c_str(), O_RDWR);
+    if (fd < 0) {
+        error = "/dev/" + name + ": " + strerror(errno);
+        return false;
+    }
+    fcntl(fd, F_SETFD, FD_CLOEXEC);
+    fFd = fd;
+    fName = name;
+    fCreated = true;
+    return true;
+}
+
+
 void TunDevice::Close()
 {
     if (fFd >= 0) {
@@ -566,6 +585,13 @@ bool TunDevice::Open(std::string& error)
     fName = request.ifr_name;
     fCreated = true;
     return true;
+}
+
+
+bool TunDevice::OpenExisting(const std::string& name, std::string& error)
+{
+    error = "not supported";
+    return false;
 }
 
 
