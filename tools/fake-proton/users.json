@@ -1,0 +1,89 @@
+{
+  "_comment": "Test accounts of the fake Proton API. Usernames are case-insensitive. 'vpn' is returned verbatim as the VPN member of GET /vpn/v2 and 'account' is merged into its top level. 2FA accepts static_twofa_code or a TOTP of totp_secret (RFC 6238, SHA-1, 30 s, 6 digits); twofa_max_attempts wrong codes revoke the session (0 = unlimited).",
+  "totp_secret": "JBSWY3DPEHPK3PXP",
+  "static_twofa_code": "123456",
+  "twofa_max_attempts": 3,
+  "users": {
+    "demo": {
+      "password": "demo",
+      "twofa": false,
+      "email": "demo@proton.test",
+      "vpn": {
+        "ExpirationTime": 0,
+        "Name": "demo_ovpn_user",
+        "Password": "demo_ovpn_password",
+        "GroupID": "fake-group-demo",
+        "Status": 1,
+        "PlanName": "vpn2022",
+        "PlanTitle": "VPN Plus",
+        "MaxTier": 2,
+        "MaxConnect": 10,
+        "Groups": ["vpnplus"],
+        "NeedConnectionAllocation": false
+      },
+      "account": {
+        "Services": 4,
+        "Subscribed": 4,
+        "Delinquent": 0,
+        "HasPaymentMethod": 1,
+        "Credit": 0,
+        "Currency": "EUR",
+        "Warnings": []
+      }
+    },
+    "free": {
+      "password": "free",
+      "twofa": false,
+      "email": "free@proton.test",
+      "vpn": {
+        "ExpirationTime": 0,
+        "Name": "free_ovpn_user",
+        "Password": "free_ovpn_password",
+        "GroupID": "fake-group-free",
+        "Status": 1,
+        "PlanName": "free",
+        "PlanTitle": "Proton Free",
+        "MaxTier": 0,
+        "MaxConnect": 1,
+        "Groups": ["vpnfree"],
+        "NeedConnectionAllocation": false
+      },
+      "account": {
+        "Services": 4,
+        "Subscribed": 0,
+        "Delinquent": 0,
+        "HasPaymentMethod": 0,
+        "Credit": 0,
+        "Currency": "EUR",
+        "Warnings": []
+      }
+    },
+    "twofa": {
+      "password": "twofa",
+      "twofa": true,
+      "email": "twofa@proton.test",
+      "vpn": {
+        "ExpirationTime": 0,
+        "Name": "twofa_ovpn_user",
+        "Password": "twofa_ovpn_password",
+        "GroupID": "fake-group-twofa",
+        "Status": 1,
+        "PlanName": "vpn2022",
+        "PlanTitle": "VPN Plus",
+        "MaxTier": 2,
+        "MaxConnect": 10,
+        "Groups": ["vpnplus"],
+        "NeedConnectionAllocation": false
+      },
+      "account": {
+        "Services": 4,
+        "Subscribed": 4,
+        "Delinquent": 0,
+        "HasPaymentMethod": 1,
+        "Credit": 0,
+        "Currency": "EUR",
+        "Warnings": []
+      }
+    }
+  }
+}
