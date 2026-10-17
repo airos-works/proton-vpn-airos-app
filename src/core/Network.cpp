@@ -313,6 +313,33 @@ bool TunDevice::Open(std::string& error)
 }
 
 
+bool RemoveTunnelInterface(const std::string& name)
+{
+    if (!StartsWith(name, "tun/") || if_nametoindex(name.c_str()) == 0)
+        return false;
+    std::vector<Route> routes;
+    std::string error;
+    for (int family : {AF_INET, AF_INET6}) {
+        if (ListRoutes(routes, family)) {
+            for (const Route& route : routes) {
+                if (route.interface == name && !route.destination.empty())
+                    DeleteRoute(route, error);
+            }
+        }
+    }
+    int fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (fd < 0)
+        return false;
+    ifreq request;
+    memset(&request, 0, sizeof(request));
+    strlcpy(request.ifr_name, name.c_str(), sizeof(request.ifr_name));
+    request.ifr_addr.sa_family = AF_UNSPEC;
+    bool ok = ioctl(fd, SIOCDIFADDR, &request, sizeof(request)) == 0;
+    close(fd);
+    return ok;
+}
+
+
 bool TunDevice::OpenExisting(const std::string& name, std::string& error)
 {
     if (if_nametoindex(name.c_str()) == 0) {
@@ -592,6 +619,13 @@ bool TunDevice::OpenExisting(const std::string& name, std::string& error)
 {
     error = "not supported";
     return false;
+}
+
+
+bool RemoveTunnelInterface(const std::string& name)
+{
+    std::string error;
+    return Run({"ip", "link", "del", name}, error);
 }
 
 

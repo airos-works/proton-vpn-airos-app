@@ -51,6 +51,10 @@ private:
     bool fCreated = false;
 };
 
+// Removes a tunnel interface someone else created (e.g. a helper that was
+// killed); its routes go with it.
+bool RemoveTunnelInterface(const std::string& name);
+
 // Parses "10.2.0.2/32" into address and prefix.
 bool ParseCidr(const std::string& text, std::string& address, int& prefix);
 

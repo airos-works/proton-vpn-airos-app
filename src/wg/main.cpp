@@ -77,6 +77,22 @@ bool Tunnel::AddRouteChecked(const Route& route, bool required, std::string& err
         fRoutes.push_back(route);
         return true;
     }
+    // Haiku allows one route per destination: a tunnel that died without
+    // cleaning up (killed helper) may still hold it. Take it over.
+    std::vector<Route> routes;
+    ListRoutes(routes, route.destination.find(':') != std::string::npos ? AF_INET6 : AF_INET);
+    for (const Route& existing : routes) {
+        if (existing.destination == route.destination && existing.prefix == route.prefix
+            && existing.interface != route.interface && StartsWith(existing.interface, "tun")) {
+            std::string ignored;
+            Emit(Json{{"event", "log"}, {"message", "replacing a stale route on " + existing.interface}});
+            DeleteRoute(existing, ignored);
+            if (AddRoute(route, message)) {
+                fRoutes.push_back(route);
+                return true;
+            }
+        }
+    }
     if (required) {
         error = message;
         return false;

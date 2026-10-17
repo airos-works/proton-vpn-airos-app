@@ -1,0 +1,450 @@
+Burrow: Haiku tunnel units, tunnel routes, point-to-point peers and IPv6.
+
+- Create the tun/<n> interface on demand and remove it on exit, so no
+  manual "ifconfig tun/0 up" is needed and several tunnels can coexist.
+  Skip units whose interface is gone while the stack keeps the device for
+  sockets that used its address (TCP TIME_WAIT after a disconnect).
+- Put VPN routes on the tunnel interface. The HaikuPorts patch put every
+  route on the default gateway's interface, so pushed routes left through
+  the Ethernet card. Only routes via the original gateway stay there.
+- Program routes with SIOCADDRT/SIOCDELRT instead of route(8): route(8)
+  turns an all-zero destination into the default route and drops its
+  netmask, so redirect-gateway's 0.0.0.0/1 (and ::/1) became a second
+  default route and half of the address space bypassed the tunnel.
+- IPv6 routes use the tunnel (or the server-route interface) instead of a
+  NULL r6->iface, and IPv6 addresses are configured with ifconfig inet6.
+- net30/p2p topologies configure the remote end as the interface peer.
+
+diff --git a/src/openvpn/route.c b/src/openvpn/route.c
+index ab9591b..7d441c5 100644
+--- a/src/openvpn/route.c
++++ b/src/openvpn/route.c
+@@ -1556,6 +1556,141 @@ is_on_link(const int is_local_route, const unsigned int flags, const struct rout
+ }
+ #endif
+ 
++#if defined(TARGET_HAIKU)
++/*
++ * Program a route through the stack directly. Haiku's route(8) turns any
++ * all-zero destination into the default route and drops its netmask, so
++ * redirect-gateway's 0.0.0.0/1 would become a second default route and the
++ * lower half of the address space would bypass the tunnel.
++ */
++static bool
++haiku_route_ioctl(bool add, const char *iface, int family, const void *network,
++                  const void *netmask, const void *gateway, bool is_default)
++{
++    struct sockaddr_storage destination, mask, via;
++    CLEAR(destination);
++    CLEAR(mask);
++    CLEAR(via);
++    if (family == AF_INET)
++    {
++        struct sockaddr_in *d = (struct sockaddr_in *)&destination;
++        struct sockaddr_in *m = (struct sockaddr_in *)&mask;
++        struct sockaddr_in *g = (struct sockaddr_in *)&via;
++        d->sin_len = m->sin_len = g->sin_len = sizeof(struct sockaddr_in);
++        d->sin_family = m->sin_family = g->sin_family = AF_INET;
++        memcpy(&d->sin_addr, network, sizeof(struct in_addr));
++        memcpy(&m->sin_addr, netmask, sizeof(struct in_addr));
++        if (gateway)
++        {
++            memcpy(&g->sin_addr, gateway, sizeof(struct in_addr));
++        }
++    }
++    else
++    {
++        struct sockaddr_in6 *d = (struct sockaddr_in6 *)&destination;
++        struct sockaddr_in6 *m = (struct sockaddr_in6 *)&mask;
++        struct sockaddr_in6 *g = (struct sockaddr_in6 *)&via;
++        d->sin6_len = m->sin6_len = g->sin6_len = sizeof(struct sockaddr_in6);
++        d->sin6_family = m->sin6_family = g->sin6_family = AF_INET6;
++        memcpy(&d->sin6_addr, network, sizeof(struct in6_addr));
++        memcpy(&m->sin6_addr, netmask, sizeof(struct in6_addr));
++        if (gateway)
++        {
++            memcpy(&g->sin6_addr, gateway, sizeof(struct in6_addr));
++        }
++    }
++
++    struct route_entry route;
++    CLEAR(route);
++    if (is_default)
++    {
++        route.flags = RTF_DEFAULT;
++    }
++    else
++    {
++        route.destination = (struct sockaddr *)&destination;
++        route.mask = (struct sockaddr *)&mask;
++    }
++    if (gateway)
++    {
++        route.gateway = (struct sockaddr *)&via;
++        route.flags |= RTF_GATEWAY;
++    }
++    if (add)
++    {
++        route.flags |= RTF_STATIC;
++    }
++
++    struct ifreq request;
++    CLEAR(request);
++    strncpynt(request.ifr_name, iface, sizeof(request.ifr_name));
++    request.ifr_route = route;
++
++    int fd = socket(family, SOCK_DGRAM, 0);
++    if (fd < 0)
++    {
++        msg(M_WARN | M_ERRNO, "Haiku: cannot open a socket for routes");
++        return false;
++    }
++    bool ok = ioctl(fd, add ? SIOCADDRT : SIOCDELRT, &request, sizeof(request)) == 0;
++    if (!ok)
++    {
++        msg(M_WARN | M_ERRNO, "Haiku: route %s on %s failed", add ? "add" : "delete",
++            iface);
++    }
++    close(fd);
++    return ok;
++}
++
++static bool
++haiku_route_ipv4(bool add, const char *iface, in_addr_t network, in_addr_t netmask,
++                 in_addr_t gateway)
++{
++    struct in_addr n = { htonl(network) };
++    struct in_addr m = { htonl(netmask) };
++    struct in_addr g = { htonl(gateway) };
++    return haiku_route_ioctl(add, iface, AF_INET, &n, &m, gateway ? &g : NULL,
++                             network == 0 && netmask == 0);
++}
++
++static bool
++haiku_route_ipv6(bool add, const char *iface, const struct in6_addr *network,
++                 int netbits, const struct in6_addr *gateway)
++{
++    struct in6_addr mask;
++    CLEAR(mask);
++    for (int i = 0; i < netbits && i < 128; i++)
++    {
++        mask.s6_addr[i / 8] |= 0x80 >> (i % 8);
++    }
++    bool has_gateway = gateway && !IN6_IS_ADDR_UNSPECIFIED(gateway);
++    return haiku_route_ioctl(add, iface, AF_INET6, network, &mask,
++                             has_gateway ? gateway : NULL, netbits == 0);
++}
++
++/*
++ * Haiku names the interface of every route. Routes through the VPN belong
++ * on the tunnel; only routes via the pre-existing default gateway (like the
++ * host route to the server for redirect-gateway) stay on the interface that
++ * reaches that gateway.
++ */
++static const char *
++haiku_route_iface(in_addr_t gateway, const struct tuntap *tt,
++                  const struct route_gateway_info *rgi)
++{
++    if (rgi && (rgi->flags & RGI_IFACE_DEFINED)
++        && (rgi->flags & RGI_ADDR_DEFINED) && gateway == rgi->gateway.addr)
++    {
++        return rgi->iface;
++    }
++    if (tt && tt->actual_name)
++    {
++        return tt->actual_name;
++    }
++    return rgi && (rgi->flags & RGI_IFACE_DEFINED) ? rgi->iface : NULL;
++}
++#endif
++
+ bool
+ add_route(struct route_ipv4 *r,
+           const struct tuntap *tt,
+@@ -1847,16 +1982,17 @@ add_route(struct route_ipv4 *r,
+ 
+ #elif defined(TARGET_HAIKU)
+ 
+-    /* ex: route add /dev/net/ipro1000/0 0.0.0.0 gw 192.168.1.1 netmask 128.0.0.0 */
+-    argv_printf(&argv, "%s add %s inet %s gw %s netmask %s",
+-                ROUTE_PATH,
+-                rgi->iface,
+-                network,
+-                gateway,
+-                netmask);
+-    argv_msg(D_ROUTE, &argv);
+-    bool ret = openvpn_execve_check(&argv, es, 0,
+-                                    "ERROR: Haiku inet route add command failed");
++    const char *iface = haiku_route_iface(r->gateway, tt, rgi);
++    if (!iface)
++    {
++        msg(M_WARN, "ERROR: Haiku route add: no interface for gateway %s", gateway);
++        status = RTA_ERROR;
++        goto done;
++    }
++
++    msg(D_ROUTE, "Haiku: route add %s inet %s netmask %s gw %s", iface, network,
++        netmask, gateway);
++    bool ret = haiku_route_ipv4(true, iface, r->network, r->netmask, r->gateway);
+     status = ret ? RTA_SUCCESS : RTA_ERROR;
+ 
+ #else /* if defined(TARGET_LINUX) */
+@@ -2134,16 +2270,9 @@ add_route_ipv6(struct route_ipv6 *r6, const struct tuntap *tt,
+ 
+ #elif defined(TARGET_HAIKU)
+ 
+-    /* ex: route add /dev/net/ipro1000/0 inet6 :: gw beef::cafe prefixlen 64 */
+-    argv_printf(&argv, "%s add %s inet6 %s gw %s prefixlen %d",
+-                ROUTE_PATH,
+-                r6->iface,
+-                network,
+-                gateway,
+-                r6->netbits);
+-    argv_msg(D_ROUTE, &argv);
+-    bool ret = openvpn_execve_check(&argv, es, 0,
+-                                    "ERROR: Haiku inet6 route add command failed");
++    msg(D_ROUTE, "Haiku: route add %s inet6 %s/%d gw %s", device, network, r6->netbits,
++        gateway);
++    bool ret = haiku_route_ipv6(true, device, &r6->network, r6->netbits, &r6->gateway);
+     status = ret ? RTA_SUCCESS : RTA_ERROR;
+ 
+ #else  /* if defined(TARGET_LINUX) */
+@@ -2351,15 +2480,15 @@ delete_route(struct route_ipv4 *r,
+ 
+ #elif defined(TARGET_HAIKU)
+ 
+-    /* ex: route del /dev/net/ipro1000/0 inet 192.168.0.0 gw 192.168.1.1 netmask 255.255.0.0 */
+-    argv_printf(&argv, "%s del %s inet %s gw %s netmask %s",
+-                ROUTE_PATH,
+-                rgi->iface,
+-                network,
+-                gateway,
+-                netmask);
+-    argv_msg(D_ROUTE, &argv);
+-    openvpn_execve_check(&argv, es, 0, "ERROR: Haiku inet route delete command failed");
++    const char *iface = haiku_route_iface(r->gateway, tt, rgi);
++    if (!iface)
++    {
++        goto done;
++    }
++
++    msg(D_ROUTE, "Haiku: route delete %s inet %s netmask %s gw %s", iface, network,
++        netmask, gateway);
++    haiku_route_ipv4(false, iface, r->network, r->netmask, r->gateway);
+ 
+ #else  /* if defined(TARGET_LINUX) */
+     msg(M_FATAL, "Sorry, but I don't know how to do 'route' commands on this operating system.  Try putting your routes in a --route-up script");
+@@ -2543,15 +2672,9 @@ delete_route_ipv6(const struct route_ipv6 *r6, const struct tuntap *tt,
+         "on connect only and will clean up automatically.");
+ #elif defined(TARGET_HAIKU)
+ 
+-    /* ex: route del /dev/net/ipro1000/0 inet6 :: gw beef::cafe prefixlen 64 */
+-    argv_printf(&argv, "%s del %s inet6 %s gw %s prefixlen %d",
+-                ROUTE_PATH,
+-                r6->iface,
+-                network,
+-                gateway,
+-                r6->netbits);
+-    argv_msg(D_ROUTE, &argv);
+-    openvpn_execve_check(&argv, es, 0, "ERROR: Haiku inet6 route delete command failed");
++    msg(D_ROUTE, "Haiku: route delete %s inet6 %s/%d gw %s", device, network,
++        r6->netbits, gateway);
++    haiku_route_ipv6(false, device, &r6->network, r6->netbits, &r6->gateway);
+ 
+ #else  /* if defined(TARGET_LINUX) */
+     msg(M_FATAL, "Sorry, but I don't know how to do 'route ipv6' commands on this operating system.  Try putting your routes in a --route-down script");
+diff --git a/src/openvpn/tun.c b/src/openvpn/tun.c
+index 9a948cd..1c6b0a2 100644
+--- a/src/openvpn/tun.c
++++ b/src/openvpn/tun.c
+@@ -1272,6 +1272,12 @@ do_ifconfig_ipv6(struct tuntap *tt, const char *ifname, int tun_mtu,
+             do_dns_domain_wmic(true, tt);
+         }
+     }
++#elif defined(TARGET_HAIKU)
++    /* example: ifconfig tun/0 inet6 fd00::2 prefixlen 64 up */
++    argv_printf(&argv, "%s %s inet6 %s prefixlen %d up", IFCONFIG_PATH,
++                ifname, ifconfig_ipv6_local, tt->netbits_ipv6);
++    argv_msg(M_INFO, &argv);
++    openvpn_execve_check(&argv, es, S_FATAL, "Haiku ifconfig inet6 failed");
+ #else /* platforms we have no IPv6 code for */
+     msg(M_FATAL, "Sorry, but I don't know how to do IPv6 'ifconfig' commands on this operating system.  You should ifconfig your TUN/TAP device manually or use an --up script.");
+ #endif /* outer "if defined(TARGET_xxx)" conditional */
+@@ -1638,9 +1644,19 @@ do_ifconfig_ipv4(struct tuntap *tt, const char *ifname, int tun_mtu,
+         windows_set_mtu(tt->adapter_index, AF_INET, tun_mtu);
+     }
+ #elif defined(TARGET_HAIKU)
+-    /* example: ifconfig tun/0 inet 1.1.1.1 255.255.255.0 mtu 1450 up */
+-    argv_printf(&argv, "%s %s inet %s %s mtu %d up", IFCONFIG_PATH,
+-                ifname, ifconfig_local, ifconfig_remote_netmask, tun_mtu);
++    if (tun)
++    {
++        /* example: ifconfig tun/0 inet 10.8.0.6 255.255.255.255 peer 10.8.0.5 mtu 1450 up */
++        argv_printf(&argv, "%s %s inet %s 255.255.255.255 peer %s mtu %d up",
++                    IFCONFIG_PATH, ifname, ifconfig_local,
++                    ifconfig_remote_netmask, tun_mtu);
++    }
++    else
++    {
++        /* example: ifconfig tun/0 inet 1.1.1.1 255.255.255.0 mtu 1450 up */
++        argv_printf(&argv, "%s %s inet %s %s mtu %d up", IFCONFIG_PATH,
++                    ifname, ifconfig_local, ifconfig_remote_netmask, tun_mtu);
++    }
+ 
+     argv_msg(M_INFO, &argv);
+     openvpn_execve_check(&argv, es, S_FATAL, "Haiku ifconfig failed");
+@@ -7177,6 +7193,154 @@ print_windows_driver(enum windows_driver_type windows_driver)
+     }
+ }
+ 
++#elif defined(TARGET_HAIKU)
++
++/*
++ * Haiku's tunnel driver publishes /dev/tun/<n> (or /dev/tap/<n>) once an
++ * interface of that name is added to the network stack, and it serves at
++ * most 10 units. Add the first free unit ourselves and remove it again when
++ * done, so no manual "ifconfig tun/0 up" is needed. Units that existed
++ * before are used as they are and kept; units whose interface was removed
++ * but which the stack still keeps for lingering sockets are skipped.
++ */
++#define HAIKU_TUNNEL_UNITS 10
++
++static bool
++haiku_add_interface(const char *name)
++{
++    int fd = socket(AF_INET, SOCK_DGRAM, 0);
++    if (fd < 0)
++    {
++        return false;
++    }
++
++    struct ifaliasreq request;
++    CLEAR(request);
++    strncpynt(request.ifra_name, name, sizeof(request.ifra_name));
++    bool ok = ioctl(fd, SIOCAIFADDR, &request, sizeof(request)) == 0;
++    if (!ok)
++    {
++        msg(M_WARN | M_ERRNO, "Could not add network interface %s", name);
++    }
++    close(fd);
++    return ok;
++}
++
++static void
++haiku_remove_interface(const char *name)
++{
++    int fd = socket(AF_INET, SOCK_DGRAM, 0);
++    if (fd < 0)
++    {
++        return;
++    }
++
++    struct ifreq request;
++    CLEAR(request);
++    strncpynt(request.ifr_name, name, sizeof(request.ifr_name));
++    request.ifr_addr.sa_family = AF_UNSPEC;
++    if (ioctl(fd, SIOCDIFADDR, &request, sizeof(request)) != 0)
++    {
++        msg(M_WARN | M_ERRNO, "Could not remove network interface %s", name);
++    }
++    else
++    {
++        msg(M_INFO, "Removed network interface %s", name);
++    }
++    close(fd);
++}
++
++void
++open_tun(const char *dev, const char *dev_type, const char *dev_node, struct tuntap *tt,
++         openvpn_net_ctx_t *ctx)
++{
++    if (tt->type == DEV_TYPE_NULL || dev_node || tun_name_is_fixed(dev))
++    {
++        open_tun_generic(dev, dev_type, dev_node, tt);
++        return;
++    }
++
++    for (int i = 0; i < HAIKU_TUNNEL_UNITS; ++i)
++    {
++        char name[IF_NAMESIZE];
++        char path[IF_NAMESIZE + 8];
++        openvpn_snprintf(name, sizeof(name), "%s/%d", dev, i);
++        openvpn_snprintf(path, sizeof(path), "/dev/%s", name);
++
++        bool created = false;
++        if (access(path, F_OK) != 0)
++        {
++            if (!haiku_add_interface(name))
++            {
++                continue;
++            }
++            created = true;
++        }
++        else if (if_nametoindex(name) == 0)
++        {
++            /* The interface is gone but the stack keeps the unit until the
++             * sockets that used its address (TCP TIME_WAIT) have closed. */
++            msg(M_INFO, "Skipping %s: its interface is still being removed", path);
++            continue;
++        }
++
++        tt->fd = open(path, O_RDWR);
++        if (tt->fd < 0)
++        {
++            /* busy: another tunnel owns this unit */
++            msg(D_READ_WRITE | M_ERRNO, "Tried opening %s (failed)", path);
++            if (created)
++            {
++                haiku_remove_interface(name);
++            }
++            continue;
++        }
++
++        tt->persistent_if = !created;
++        set_nonblock(tt->fd);
++        set_cloexec(tt->fd); /* don't pass fd to scripts */
++        msg(M_INFO, "TUN/TAP device %s opened%s", path,
++            created ? " (created)" : "");
++        tt->actual_name = string_alloc(name, NULL);
++        return;
++    }
++
++    msg(M_FATAL, "Cannot allocate TUN/TAP dev dynamically");
++}
++
++void
++close_tun(struct tuntap *tt, openvpn_net_ctx_t *ctx)
++{
++    ASSERT(tt);
++
++    char *name = NULL;
++    if (tt->actual_name && !tt->persistent_if)
++    {
++        name = string_alloc(tt->actual_name, NULL);
++    }
++
++    /* the driver refuses to remove a unit that is still open */
++    close_tun_generic(tt);
++    if (name)
++    {
++        haiku_remove_interface(name);
++        free(name);
++    }
++    free(tt);
++}
++
++int
++write_tun(struct tuntap *tt, uint8_t *buf, int len)
++{
++    return write(tt->fd, buf, len);
++}
++
++int
++read_tun(struct tuntap *tt, uint8_t *buf, int len)
++{
++    return read(tt->fd, buf, len);
++}
++
+ #else /* generic */
+ 
+ void

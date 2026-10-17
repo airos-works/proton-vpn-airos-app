@@ -1,6 +1,7 @@
 #include "Tunnel.h"
 #include "Json.h"
 #include "Management.h"
+#include "Network.h"
 #include "Util.h"
 #include <arpa/inet.h>
 #include <cerrno>
@@ -125,6 +126,7 @@ private:
     int fOutput = -1;
     std::string fDevice;
     bool fUp = false;
+    bool fStopped = false;      // the helper reported "stopped"
     TunnelFailure fFailure = TunnelFailure::None;
     std::string fFailureMessage;
 };
@@ -614,6 +616,8 @@ void WireGuardTunnel::HandleEvent(const Json& event)
         fListener->TunnelLog("WireGuard: " + fFailureMessage);
     } else if (name == "log") {
         fListener->TunnelLog("WireGuard: " + JsonString(event, "message"));
+    } else if (name == "stopped") {
+        fStopped = true;
     }
 }
 
@@ -692,6 +696,10 @@ void WireGuardTunnel::Run()
     Reap(8);
     close(fOutput);
     fOutput = -1;
+    // A helper that died without its "stopped" event left its interface
+    // and routes behind.
+    if (!fStopped && !fDevice.empty() && RemoveTunnelInterface(fDevice))
+        fListener->TunnelLog("Removed " + fDevice + " left by the WireGuard helper");
     if (fFailure == TunnelFailure::None && !fStopRequested) {
         fFailure = fUp ? TunnelFailure::Unexpected : TunnelFailure::TunnelSetup;
         fFailureMessage = "The WireGuard helper stopped.";
