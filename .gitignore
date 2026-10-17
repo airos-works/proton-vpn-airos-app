@@ -1,0 +1,8 @@
+.vm/
+.upstream/
+build-haiku/
+build-host/
+build-cross/
+artifacts/
+__pycache__/
+*.pyc
