@@ -42,7 +42,8 @@ make package         # artifacts/proton_vpn-<version>-x86_64.hpkg
 The core (`src/core`, no Haiku API) also builds on Linux: `make BUILD=build-host check-host`.
 `tests/wg-interop.sh` checks the WireGuard implementation against Linux's kernel WireGuard.
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/VM.md](docs/VM.md).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/VM.md](docs/VM.md) and
+[docs/TESTING.md](docs/TESTING.md) (checklist for a real Proton account).
 
 ## License
 
