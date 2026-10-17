@@ -359,6 +359,17 @@ bool TunDevice::OpenExisting(const std::string& name, std::string& error)
 }
 
 
+void TunDevice::Release()
+{
+    if (fFd >= 0) {
+        close(fFd);
+        fFd = -1;
+    }
+    fCreated = false;
+    fName.clear();
+}
+
+
 void TunDevice::Close()
 {
     if (fFd >= 0) {
@@ -637,6 +648,12 @@ void TunDevice::Close()
     }
     fName.clear();
     fCreated = false;
+}
+
+
+void TunDevice::Release()
+{
+    Close();
 }
 
 

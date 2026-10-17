@@ -36,6 +36,9 @@ public:
     // Takes over an existing tunnel interface (removed again by Close()).
     bool OpenExisting(const std::string& name, std::string& error);
     void Close();
+    // Closes the descriptor but leaves the interface (and its routes) in
+    // place, for a kill switch that outlives the app.
+    void Release();
     int Fd() const { return fFd; }
     const std::string& Name() const { return fName; }
 

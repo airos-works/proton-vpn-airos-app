@@ -55,6 +55,8 @@ RouteKillSwitch::~RouteKillSwitch()
     std::string interface;
     if (!ReadState(fStateFile, permanent, interface) || !permanent)
         Disable();
+    else
+        fPrivate->blackhole.Release();
     delete fPrivate;
 }
 
