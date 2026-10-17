@@ -296,6 +296,13 @@ ApiResult ApiSession::Request(const std::string& endpoint, const Json& body,
     const std::string& method, const std::vector<std::pair<std::string, std::string>>& headers)
 {
     ApiResult result;
+    // Everything but sign-in needs a session; never fall back to anonymous
+    // requests after the session was dropped.
+    if (!Authenticated()) {
+        result.error = ApiError::AuthenticationNeeded;
+        result.message = "Not signed in";
+        return result;
+    }
     for (int attempt = 0; attempt < 3; attempt++) {
         unsigned revision;
         {

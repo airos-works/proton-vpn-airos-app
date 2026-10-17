@@ -223,12 +223,16 @@ void Client::HandleApiError(const ApiResult& result)
 {
     if (result.error != ApiError::AuthenticationNeeded)
         return;
-    Emit("The session has expired.");
-    fApi.ClearLocal();
+    bool notify;
     {
         std::lock_guard<std::mutex> lock(fLock);
+        notify = fLoaded;
         fLoaded = false;
     }
+    fApi.ClearLocal();
+    if (!notify)
+        return;   // reported already
+    Emit("The session has expired.");
     fListener->Notice(ClientNotice::SessionExpired, result.message);
 }
 
@@ -351,7 +355,9 @@ ApiResult Client::RefreshAccountInfo()
 
 ApiResult Client::RefreshServerList()
 {
-    FetchClientConfig();
+    ApiResult config = FetchClientConfig();
+    if (config.error == ApiError::AuthenticationNeeded)
+        return config;
     ApiResult result = FetchServerList(true);
     if (result.Ok())
         fListener->ServerListChanged();
@@ -577,6 +583,7 @@ ApiResult Client::FetchCertificate()
 ApiResult Client::FetchClientConfig()
 {
     ApiResult result = fApi.Request("/vpn/v2/clientconfig");
+    HandleApiError(result);
     ClientConfig config;
     if (result.Ok() && ClientConfig::FromJson(result.json, config)) {
         {
@@ -596,6 +603,7 @@ ApiResult Client::FetchClientConfig()
 ApiResult Client::FetchFeatureFlags()
 {
     ApiResult result = fApi.Request("/feature/v2/frontend");
+    HandleApiError(result);
     {
         std::lock_guard<std::mutex> lock(fLock);
         if (result.Ok())
@@ -613,6 +621,7 @@ ApiResult Client::FetchFeatureFlags()
 ApiResult Client::FetchLocation()
 {
     ApiResult result = fApi.Request("/vpn/v1/location");
+    HandleApiError(result);
     if (result.Ok()) {
         Json json = result.json;
         json["ExpirationTime"] = Now() + VpnLocation::kRefreshSeconds;

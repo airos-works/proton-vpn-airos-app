@@ -817,10 +817,14 @@ void ProtonApp::MessageReceived(BMessage* message)
             RunAsync(kMsgServersRefreshed, [this](BMessage& reply) {
                 ApiResult result = fClient->RefreshServerList();
                 reply.AddBool("ok", result.Ok());
+                reply.AddBool("expired", result.error == ApiError::AuthenticationNeeded);
                 reply.AddString("text", ErrorText(result).c_str());
             });
             break;
         case kMsgServersRefreshed:
+            // An expired session has its own dialog.
+            if (message->GetBool("expired", false))
+                break;
             if (fWindow->LockLooper()) {
                 if (message->GetBool("ok", false))
                     fWindow->Notify("Server list updated", kNotificationSuccess, 3000000);
