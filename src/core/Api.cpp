@@ -1,4 +1,5 @@
 #include "Api.h"
+#include "Crypto.h"
 #include "Modulus.h"
 #include "Srp.h"
 #include "Util.h"
@@ -204,9 +205,20 @@ ApiResult ApiSession::RawRequest(const std::string& method, const std::string& e
     const Json& body, const std::vector<std::pair<std::string, std::string>>& headers,
     bool authenticated)
 {
+    std::string verb = !method.empty() ? method : body.is_null() ? "GET" : "POST";
+    if (body.is_null())
+        return Perform(verb, endpoint, std::string(), std::string(), headers, authenticated);
+    return Perform(verb, endpoint, body.dump(), "application/json", headers, authenticated);
+}
+
+
+ApiResult ApiSession::Perform(const std::string& method, const std::string& endpoint,
+    const std::string& body, const std::string& contentType,
+    const std::vector<std::pair<std::string, std::string>>& headers, bool authenticated)
+{
     HttpRequest request;
     request.url = fEnvironment.baseUrl + endpoint;
-    request.method = !method.empty() ? method : body.is_null() ? "GET" : "POST";
+    request.method = method;
     request.headers.push_back({"x-pm-appversion", fEnvironment.appVersion});
     request.headers.push_back({"User-Agent", fEnvironment.userAgent});
     if (!fEnvironment.locale.empty())
@@ -220,12 +232,14 @@ ApiResult ApiSession::RawRequest(const std::string& method, const std::string& e
             request.headers.push_back({"Authorization", "Bearer " + fTokens.accessToken});
         }
     }
-    if (!body.is_null()) {
-        request.headers.push_back({"Content-Type", "application/json"});
-        request.body = body.dump();
+    if (!contentType.empty()) {
+        request.headers.push_back({"Content-Type", contentType});
+        request.body = body;
     }
     for (const auto& header : headers)
         request.headers.push_back(header);
+    if (contentType.find("multipart") != std::string::npos)
+        request.timeoutSeconds = 60;
 
     HttpResponse response = fHttp.Perform(request);
     ApiResult result;
@@ -240,8 +254,8 @@ ApiResult ApiSession::RawRequest(const std::string& method, const std::string& e
     result.body = response.body;
     if (response.status == 304)
         return result;
-    std::string contentType = response.Header("content-type");
-    if (contentType.find("json") == std::string::npos) {
+    std::string replyType = response.Header("content-type");
+    if (replyType.find("json") == std::string::npos) {
         if (response.status >= 200 && response.status < 300 && !response.body.empty())
             return result;   // binary payloads (e.g. /vpn/v2/status/.../binary)
         result.error = ApiError::NotReachable;
@@ -368,6 +382,36 @@ bool ApiSession::Refresh()
         return false;
     }
     return false;
+}
+
+
+ApiResult ApiSession::RequestForm(const std::string& endpoint, const std::vector<FormField>& fields)
+{
+    std::string boundary = "----ProtonVPNHaiku" + HexEncode(RandomBytes(12));
+    std::string body;
+    for (const FormField& field : fields) {
+        body += "--" + boundary + "\r\n";
+        body += "Content-Disposition: form-data; name=\"" + field.name + "\"";
+        if (!field.filename.empty())
+            body += "; filename=\"" + field.filename + "\"";
+        body += "\r\n";
+        if (!field.filename.empty())
+            body += "Content-Type: " + (field.contentType.empty()
+                ? std::string("application/octet-stream") : field.contentType) + "\r\n";
+        body += "\r\n" + field.value + "\r\n";
+    }
+    body += "--" + boundary + "--\r\n";
+    std::string type = "multipart/form-data; boundary=" + boundary;
+    ApiResult result;
+    for (int attempt = 0; attempt < 2; attempt++) {
+        result = Perform("POST", endpoint, body, type, {}, true);
+        if (result.httpStatus == 401 && attempt == 0 && Refresh())
+            continue;
+        break;
+    }
+    if (result.httpStatus == 401)
+        result.error = ApiError::AuthenticationNeeded;
+    return result;
 }
 
 

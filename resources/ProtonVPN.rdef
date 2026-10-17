@@ -1,0 +1,14 @@
+resource app_signature "application/x-vnd.ProtonVPN";
+resource app_flags B_SINGLE_LAUNCH;
+resource vector_icon {
+    import "proton-vpn.hvif"
+};
+resource app_version {
+    major = 0,
+    middle = 1,
+    minor = 0,
+    variety = B_APPV_ALPHA,
+    internal = 0,
+    short_info = "Proton VPN 0.1.0 alpha",
+    long_info = "Proton VPN for air/OS: a native port of the Proton VPN Linux app."
+};

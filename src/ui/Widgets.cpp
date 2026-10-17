@@ -24,7 +24,7 @@ bool DarkPanel()
 
 void OpenUrl(const char* url)
 {
-    BUrl target(url);
+    BUrl target(url, true);
     if (target.IsValid())
         target.OpenWithPreferredApplication(false);
 }
@@ -172,9 +172,10 @@ NotificationBar::NotificationBar()
     BView("notification bar", B_WILL_DRAW)
 {
     fText = new DescriptionView("text", "", false);
-    SetLayout(new BGroupLayout(B_VERTICAL));
+    BGroupLayout* layout = new BGroupLayout(B_VERTICAL);
+    SetLayout(layout);
     float inset = be_control_look->DefaultItemSpacing();
-    GetLayout()->SetInsets(inset, inset / 2, inset, inset / 2);
+    layout->SetInsets(inset, inset / 2, inset, inset / 2);
     AddChild(fText);
 }
 

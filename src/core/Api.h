@@ -68,6 +68,13 @@ struct SessionTokens {
     static SessionTokens FromJson(const Json& json);
 };
 
+struct FormField {
+    std::string name;
+    std::string value;
+    std::string filename;      // set for file attachments
+    std::string contentType;   // for attachments, e.g. "text/plain"
+};
+
 class ApiSession {
 public:
     explicit ApiSession(const ApiEnvironment& environment);
@@ -88,6 +95,9 @@ public:
         const std::string& method = "",
         const std::vector<std::pair<std::string, std::string>>& headers = {});
 
+    // multipart/form-data POST (bug reports), with the same token refresh.
+    ApiResult RequestForm(const std::string& endpoint, const std::vector<FormField>& fields);
+
     // Signs in. On success error is None; check NeedsTwoFactor afterwards.
     ApiResult Login(const std::string& username, const std::string& password);
     ApiResult ProvideTwoFactorCode(const std::string& code);
@@ -103,6 +113,9 @@ public:
         bool authenticated);
 
 private:
+    ApiResult Perform(const std::string& method, const std::string& endpoint,
+        const std::string& body, const std::string& contentType,
+        const std::vector<std::pair<std::string, std::string>>& headers, bool authenticated);
     void NotifyTokens();
     void SleepForRetry(const ApiResult& result);
 

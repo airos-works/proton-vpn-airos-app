@@ -5,6 +5,7 @@
 #include "Util.h"
 #include <cmath>
 #include <future>
+#include <sys/utsname.h>
 #include <unistd.h>
 
 namespace pvpn {
@@ -344,6 +345,52 @@ ApiResult Client::RefreshAccountInfo()
         SaveSecrets();
         fListener->AccountChanged();
     }
+    return result;
+}
+
+
+ApiResult Client::SubmitBugReport(const std::string& username, const std::string& email,
+    const std::string& description, const std::vector<std::string>& attachments,
+    const std::string& clientVersion)
+{
+    std::string os = "Haiku";
+    std::string osVersion;
+    std::string text;
+#if defined(__HAIKU__)
+    os = "air/OS (Haiku)";
+#endif
+    struct utsname name;
+    if (uname(&name) == 0)
+        osVersion = std::string(name.release) + " " + name.version;
+    std::vector<FormField> fields = {
+        {"OS", os, "", ""},
+        {"OSVersion", osVersion, "", ""},
+        {"Client", "Linux GUI", "", ""},
+        {"ClientVersion", clientVersion, "", ""},
+        {"ClientType", "2", "", ""},
+        {"Title", "Report from Linux app (air/OS port)", "", ""},
+        {"Description", description, "", ""},
+        {"Username", username, "", ""},
+        {"Email", email, "", ""},
+    };
+    VpnAccount account = Account();
+    if (!account.location.isp.empty() || !account.location.country.empty()) {
+        fields.push_back({"ISP", account.location.isp, "", ""});
+        fields.push_back({"Country", account.location.country, "", ""});
+    }
+    int index = 0;
+    for (const std::string& path : attachments) {
+        std::string contents;
+        if (!ReadFile(path, contents))
+            continue;
+        // Keep attachments reasonable: the end of large logs matters most.
+        if (contents.size() > 2 * 1024 * 1024)
+            contents = contents.substr(contents.size() - 2 * 1024 * 1024);
+        std::string filename = path.substr(path.rfind('/') + 1);
+        fields.push_back({"Attachment-" + std::to_string(index++), contents, filename, "text/plain"});
+    }
+    ApiResult result = fApi.RequestForm("/core/v4/reports/bug", fields);
+    HandleApiError(result);
     return result;
 }
 

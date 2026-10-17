@@ -61,8 +61,6 @@ public:
     void MouseDown(BPoint where) override;
     void MouseMoved(BPoint where, uint32 transit, const BMessage* message) override;
     void KeyDown(const char* bytes, int32 count) override;
-    void Expand(BListItem* item) override;
-    void Collapse(BListItem* item) override;
     bool InitiateDrag(BPoint point, int32 index, bool wasSelected) override { return false; }
 
 private:
@@ -72,7 +70,6 @@ private:
     void Activate(ServerRow* row);
 
     std::shared_ptr<const pvpn::ServerList> fServers;
-    std::set<std::string> fExpanded;
     std::string fSignature;     // the structure the rows were built from
     int fTier = -1;
     bool fRescope = false;

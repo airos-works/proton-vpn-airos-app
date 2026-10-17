@@ -23,19 +23,20 @@ CLI_OBJ = $(CLI:%.cpp=$(BUILD)/%.o)
 TARGET_OS ?= $(shell uname)
 ifeq ($(TARGET_OS),Haiku)
 CORE_LIBS = -lcurl -lssl -lcrypto -lnetwork
+UI_CPPFLAGS = -I/boot/system/develop/headers/private/interface
 else
 CPPFLAGS += $(shell pkg-config --cflags libcurl openssl 2>/dev/null)
 CORE_LIBS = -lcurl -lssl -lcrypto -lpthread
 endif
-LIBS = -lbe -ltracker -ltranslation -llocalestub $(CORE_LIBS)
-.PHONY: all tools core objects openvpn package clean icon check check-host
+LIBS = -lbe -ltracker -ltranslation $(CORE_LIBS)
+.PHONY: all tools core objects openvpn package clean icon assets check check-host
 all: $(BUILD)/$(APP) $(BUILD)/proton-wireguard $(BUILD)/proton-vpn-cli
 tools: $(BUILD)/proton-wireguard $(BUILD)/proton-vpn-cli
 core: $(CORE_OBJ)
 objects: $(CORE_OBJ) $(UI_OBJ)
-$(BUILD)/$(APP): $(CORE_OBJ) $(UI_OBJ) resources/ProtonVPN.rdef
+$(BUILD)/$(APP): $(CORE_OBJ) $(UI_OBJ) resources/ProtonVPN.rdef resources/Assets.rdef resources/proton-vpn.hvif
 	$(CXX) -o $@.new $(CORE_OBJ) $(UI_OBJ) $(LIBS) -Wl,--export-dynamic
-	rc -o $(BUILD)/$(APP).rsrc resources/ProtonVPN.rdef
+	rc -o $(BUILD)/$(APP).rsrc resources/ProtonVPN.rdef resources/Assets.rdef
 	xres -o $@.new $(BUILD)/$(APP).rsrc
 	mimeset -f $@.new
 	mv $@.new $@
@@ -45,7 +46,7 @@ $(BUILD)/proton-vpn-cli: $(CLI_OBJ) $(CORE_OBJ)
 	$(CXX) -o $@ $(CLI_OBJ) $(CORE_OBJ) $(CORE_LIBS)
 $(BUILD)/%.o: %.cpp
 	mkdir -p $(dir $@)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
+	$(CXX) $(CPPFLAGS) $(UI_CPPFLAGS) $(CXXFLAGS) -MMD -MP -c $< -o $@
 $(BUILD)/%.o: %.c
 	mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -63,3 +64,7 @@ clean:
 -include $(CORE_OBJ:.o=.d) $(UI_OBJ:.o=.d) $(WG_OBJ:.o=.d) $(CLI_OBJ:.o=.d) $(BUILD)/tests/CoreTests.d
 $(BUILD)/wg_interop: $(CORE_OBJ) $(BUILD)/tests/WgInterop.o
 	$(CXX) -o $@ $^ $(CORE_LIBS)
+icon:
+	python3 tools/make-icon.py resources/proton-vpn.hvif
+assets:
+	python3 tools/render-assets.py
