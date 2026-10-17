@@ -762,6 +762,8 @@ void ProtonApp::MessageReceived(BMessage* message)
             BString detail = message->GetString("detail", "");
             switch (notice) {
                 case ClientNotice::SessionExpired:
+                    // Signed out by the API: no connection without a session.
+                    fClient->Disconnect();
                     fClient->StopBackground();
                     ShowAlert("Invalid Session", "Your session has expired. Please sign in again.");
                     ShowLoginScreen();

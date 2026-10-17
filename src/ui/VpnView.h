@@ -39,7 +39,6 @@ public:
 
 private:
     void UpdateButtons();
-    void ShowLegend();
 
     StatusView* fStatusView;
     BButton* fConnect;
