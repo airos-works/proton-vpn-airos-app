@@ -21,6 +21,7 @@
 #include <Screen.h>
 #include <ScrollView.h>
 #include <TextView.h>
+#include <TranslatorRoster.h>
 #include <ctime>
 #include <sys/stat.h>
 #include <thread>
@@ -69,6 +70,11 @@ ProtonApp::ProtonApp()
     :
     BApplication(kAppSignature)
 {
+    // Created later, the translator roster locks be_app to add its node monitor
+    // handler. The window thread decodes the first icons while this thread holds the
+    // app lock and waits for the window's (Startup()), so create it while launching,
+    // when it does not lock.
+    BTranslatorRoster::Default();
 }
 
 

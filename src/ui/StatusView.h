@@ -36,6 +36,7 @@ private:
     bool fRescope = false;
     std::vector<std::string> fFreeCountries;
     BRect fPortRect;
+    BRect fFreeRect;            // the free countries summary (click: details)
     bool fCopied = false;
     int fPhase = 0;
     BMessageRunner* fSpinner = nullptr;

@@ -3,6 +3,7 @@
 #include "Messages.h"
 #include "Widgets.h"
 #include "core/Countries.h"
+#include <Alert.h>
 #include <Clipboard.h>
 #include <Font.h>
 #include <GradientLinear.h>
@@ -284,7 +285,8 @@ void StatusView::Draw(BRect updateRect)
             flag.top + Scaled(26) - 1));
         if (fTier == kTierFree) {
             heading = "Fastest free server";
-            subtitle = "Auto-selected from free locations";
+            // FreeRescope draws its own summary of the free countries below.
+            subtitle = fRescope && !fFreeCountries.empty() ? " " : "Auto-selected from free locations";
         } else {
             heading = "Fastest country";
         }
@@ -299,7 +301,31 @@ void StatusView::Draw(BRect updateRect)
     float lineTop = y + (subtitle.empty() ? Scaled(8) : 0);
     DrawString(headingText.String(), BPoint(textLeft, lineTop + boldHeight.ascent));
     SetFont(be_plain_font);
-    if (!subtitle.empty()) {
+    fFreeRect = BRect();
+    if (subtitle == " ") {
+        // "Auto-selected from" [3 flags] +N (i), as free_countries_summary.py.
+        float x = textLeft;
+        float lineTop2 = lineTop + RowHeight(*be_bold_font);
+        float baseline2 = lineTop2 + plainHeight.ascent;
+        SetHighColor(WeakTextColor());
+        DrawString("Auto-selected from", BPoint(x, baseline2));
+        x += StringWidth("Auto-selected from") + Scaled(6);
+        float flagHeight = Scaled(12), flagWidth = Scaled(18);
+        float flagTop = lineTop2 + (RowHeight(*be_plain_font) - flagHeight) / 2;
+        for (size_t i = 0; i < fFreeCountries.size() && i < 3; i++) {
+            Icons::DrawFlag(this, fFreeCountries[i], BRect(x, flagTop, x + flagWidth - 1,
+                flagTop + flagHeight - 1));
+            x += flagWidth + Scaled(3);
+        }
+        if (fFreeCountries.size() > 3) {
+            std::string more = "+" + std::to_string(fFreeCountries.size() - 3);
+            DrawString(more.c_str(), BPoint(x + Scaled(2), baseline2));
+            x += StringWidth(more.c_str()) + Scaled(6);
+        }
+        BRect info(x, flagTop - Scaled(2), x + Scaled(16) - 1, flagTop + Scaled(14) - 1);
+        Icons::Draw(this, Icons::Tinted("info", WeakTextColor()), info);
+        fFreeRect = BRect(textLeft, lineTop2, info.right, lineTop2 + RowHeight(*be_plain_font));
+    } else if (!subtitle.empty()) {
         SetHighColor(WeakTextColor());
         BString subtitleText(subtitle.c_str());
         TruncateString(&subtitleText, B_TRUNCATE_END, bounds.right - textLeft - margin);
@@ -339,6 +365,17 @@ void StatusView::Draw(BRect updateRect)
 
 void StatusView::MouseDown(BPoint where)
 {
+    if (fFreeRect.IsValid() && fFreeRect.Contains(where)) {
+        std::string text = "Proton Free automatically connects you to the fastest free server "
+            "available. This is usually the closest server to your location.\n\n"
+            "Free server locations (" + std::to_string(fFreeCountries.size()) + ")\n";
+        for (const std::string& code : fFreeCountries)
+            text += "\n" + CountryName(code);
+        BAlert* alert = new BAlert("Free connections", text.c_str(), "Close");
+        alert->SetFlags(alert->Flags() | B_CLOSE_ON_ESCAPE);
+        alert->Go(nullptr);
+        return;
+    }
     if (!fPortRect.IsValid() || !fPortRect.Contains(where))
         return;
     std::string port = std::to_string(fStatus.forwardedPort);
