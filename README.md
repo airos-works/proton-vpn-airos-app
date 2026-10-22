@@ -39,6 +39,12 @@ make check           # core tests
 make package         # artifacts/proton_vpn-<version>-x86_64.hpkg
 ```
 
+Every push to `main` runs `.github/workflows/airos.yml`: air/OS CI
+([jmgasper/airos-ci](https://github.com/jmgasper/airos-ci)) cross-builds x86_64 and arm64
+packages and publishes them as the rolling
+[`latest`](https://github.com/jmgasper/proton-vpn-airos-app/releases/tag/latest) prerelease,
+with SHA-256 checksums in its notes.
+
 The core (`src/core`, no Haiku API) also builds on Linux: `make BUILD=build-host check-host`.
 `tests/wg-interop.sh` checks the WireGuard implementation against Linux's kernel WireGuard.
 
