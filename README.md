@@ -22,6 +22,19 @@ to air/OS and Haiku, with a native Haiku user interface instead of GTK.
 - Server list and loads, client configuration, feature flags and the certificate are
   refreshed in the background as the Linux app does; dropped connections reconnect.
 
+<!-- airos-ci:latest-builds:start -->
+## Latest builds
+
+Built automatically by air/OS CI from commit `27f4c88` on 2026-10-23 ([all files](https://github.com/jmgasper/proton-vpn-airos-app/releases/tag/latest)).
+
+| Architecture | Package |
+|---|---|
+| arm64 | [proton_vpn-0.1.0.alpha-3-arm64.hpkg](https://github.com/jmgasper/proton-vpn-airos-app/releases/download/latest/proton_vpn-0.1.0.alpha-3-arm64.hpkg) |
+| x86_64 | [proton_vpn-0.1.0.alpha-3-x86_64.hpkg](https://github.com/jmgasper/proton-vpn-airos-app/releases/download/latest/proton_vpn-0.1.0.alpha-3-x86_64.hpkg) |
+
+Install with `pkgman install <file>`, or copy the file into `/boot/system/packages`. Haiku SDK: x86_64 hrev60207-1741-g6fde1e10f8, arm64 hrev60207-1741-g6fde1e10f8.
+<!-- airos-ci:latest-builds:end -->
+
 ## Status
 
 Alpha. Tested end to end in an air/OS x86_64 VM against stand-in Proton servers
