@@ -235,7 +235,6 @@ ServerListView::ServerListView()
 void ServerListView::AttachedToWindow()
 {
     BOutlineListView::AttachedToWindow();
-    SetEventMask(B_POINTER_EVENTS, 0);
     SetFlags(Flags() | B_FULL_UPDATE_ON_RESIZE);
 }
 
