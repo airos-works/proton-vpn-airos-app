@@ -25,14 +25,14 @@ to air/OS and Haiku, with a native Haiku user interface instead of GTK.
 <!-- airos-ci:latest-builds:start -->
 ## Latest builds
 
-Built automatically by air/OS CI from commit `27f4c88` on 2026-10-23 ([all files](https://github.com/jmgasper/proton-vpn-airos-app/releases/tag/latest)).
+Built automatically by air/OS CI from commit `019141b` on 2026-10-31 ([all files](https://github.com/airos-works/proton-vpn-airos-app/releases/tag/latest)).
 
 | Architecture | Package |
 |---|---|
-| arm64 | [proton_vpn-0.1.0.alpha-3-arm64.hpkg](https://github.com/jmgasper/proton-vpn-airos-app/releases/download/latest/proton_vpn-0.1.0.alpha-3-arm64.hpkg) |
-| x86_64 | [proton_vpn-0.1.0.alpha-3-x86_64.hpkg](https://github.com/jmgasper/proton-vpn-airos-app/releases/download/latest/proton_vpn-0.1.0.alpha-3-x86_64.hpkg) |
+| arm64 | [proton_vpn-0.1.0.alpha-3-arm64.hpkg](https://github.com/airos-works/proton-vpn-airos-app/releases/download/latest/proton_vpn-0.1.0.alpha-3-arm64.hpkg) |
+| x86_64 | [proton_vpn-0.1.0.alpha-3-x86_64.hpkg](https://github.com/airos-works/proton-vpn-airos-app/releases/download/latest/proton_vpn-0.1.0.alpha-3-x86_64.hpkg) |
 
-Install with `pkgman install <file>`, or copy the file into `/boot/system/packages`. Haiku SDK: x86_64 hrev60207-1741-g6fde1e10f8, arm64 hrev60207-1741-g6fde1e10f8.
+Install with `pkgman install <file>`, or copy the file into `/boot/system/packages`. Haiku SDK: x86_64 hrev60207-2148-g650d93d84f, arm64 hrev60207-2149-gd485e26392.
 <!-- airos-ci:latest-builds:end -->
 
 ## Status
