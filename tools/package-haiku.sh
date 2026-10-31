@@ -14,6 +14,7 @@ trap 'rm -rf -- "$STAGE"' EXIT
 APP="$STAGE/apps/Proton VPN"
 DOCS="$STAGE/documentation/packages/proton_vpn"
 mkdir -p "$APP/helpers" "$STAGE/bin" "$DOCS/openvpn" "$STAGE/data/deskbar/menu/Applications" \
+    "$STAGE/data/launch" \
     "$ROOT/artifacts"
 cp build-haiku/ProtonVPN "$APP/Proton VPN"
 strip --strip-debug "$APP/Proton VPN"
@@ -24,6 +25,8 @@ cp build-haiku/openvpn/proton-openvpn "$APP/helpers/proton-openvpn"
 strip "$APP/helpers/proton-wireguard"
 cp build-haiku/proton-vpn-cli "$STAGE/bin/proton-vpn-cli"
 strip "$STAGE/bin/proton-vpn-cli"
+# At boot, drop name servers a connection left behind (shutdown while connected).
+cp resources/launch/proton_vpn "$STAGE/data/launch/proton_vpn"
 cp resources/ProtonVPN.PackageInfo "$STAGE/.PackageInfo"
 cp README.md LICENSE "$DOCS/"
 cp -R docs "$DOCS/"

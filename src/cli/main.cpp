@@ -4,10 +4,13 @@
 //   proton-vpn-cli [--state DIR] logout
 //   proton-vpn-cli [--state DIR] info | servers [country] | settings [key=value ...]
 //   proton-vpn-cli [--state DIR] connect [fastest|<country>|<server>] [--seconds N]
+//   proton-vpn-cli cleanup-dns                    (the boot job: drops name servers a
+//                                                  connection left in resolv.conf)
 // connect stays connected for N seconds (default: until Ctrl+C or stdin closes)
 // and disconnects before it exits.
 #include "core/Client.h"
 #include "core/Countries.h"
+#include "core/ResolvConf.h"
 #include "core/Util.h"
 #include <csignal>
 #include <cstdio>
@@ -94,7 +97,8 @@ int Usage()
         "  servers [country]\n"
         "  settings [protocol=wireguard|openvpn-udp|openvpn-tcp] [netshield=0|1|2]\n"
         "           [killswitch=0|1|2] [portforwarding=0|1] [ipv6=0|1] ...\n"
-        "  connect [fastest|<country>|<server>] [--seconds N]\n");
+        "  connect [fastest|<country>|<server>] [--seconds N]\n"
+        "  cleanup-dns             (drop name servers left in resolv.conf)\n");
     return 2;
 }
 
@@ -136,6 +140,14 @@ int main(int argc, char** argv)
     }
     if (args.empty())
         return Usage();
+    // Run at boot by launch_daemon: a shutdown while connected leaves the VPN's
+    // name servers in resolv.conf, and every lookup waits for them to time out
+    // until the app is opened again.
+    if (args[0] == "cleanup-dns") {
+        std::string path = getenv("PROTON_VPN_RESOLV_CONF") ? getenv("PROTON_VPN_RESOLV_CONF")
+            : kResolvConfPath;
+        return RestoreDns(path) ? 0 : 1;
+    }
 
     std::string binaries = BinaryDirectory(argv[0]);
     ClientPaths paths;

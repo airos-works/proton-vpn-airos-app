@@ -68,7 +68,9 @@ behaviour that the Haiku UI follows.
   then adds details and features.
 - **DNS:** custom DNS when enabled, otherwise 10.2.0.1 for WireGuard or the pushed servers
   for OpenVPN, written above net_server's `# Dynamic DNS entries` marker and removed on
-  disconnect (and at start-up after a crash).
+  disconnect, at start-up after a crash, and at boot (`data/launch/proton_vpn` runs
+  `proton-vpn-cli cleanup-dns`: a shutdown while connected left 10.2.0.1 first, and every
+  lookup waited 5 s for it until the app was opened).
 - **Local agent:** features requested for paid plans (free plans only ask for the status);
   hard-jailed reasons become ExpiredCertificate (refresh the certificate, the agent
   reconnects with it), TwoFARequired, MaximumSessionsReached or UnexpectedError. With port
@@ -98,6 +100,7 @@ and the interface outlives a crashed app.
   `route-zero-network`); the app and its OpenVPN use ioctls.
 - **Resolver caching:** programs that already resolved names keep their name servers until
   they restart (libnetwork's `res_check()` is compiled out; see Burrow's notes).
+  airos-works/haiku#51 makes the resolver read resolv.conf again when it changes.
 - **Key store:** the first access from each executable path asks the user to allow it.
 
 ## Testing

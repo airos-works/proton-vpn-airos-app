@@ -1,0 +1,3 @@
+job x-vnd.proton-vpn-cleanup-dns {
+	launch /boot/system/bin/proton-vpn-cli cleanup-dns
+}
